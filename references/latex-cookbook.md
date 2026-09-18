@@ -180,11 +180,11 @@ Unknown 1 & 0.0230 & [0.0217, 0.0243] & [0.0194, 0.0268] \\
 ## 3. 编译
 
 ```powershell
-latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build main.tex
+latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build <起>-<止>-汇报.tex
 ```
 或用本技能脚本（会把错误摘要成清单）：
 ```powershell
-& "<venv>\Scripts\python.exe" "<skill>\scripts\compile_pdf.py" --tex main.tex --outdir build
+& "<venv>\Scripts\python.exe" "<skill>\scripts\compile_pdf.py" --tex <起>-<止>-汇报.tex --outdir build
 ```
 
 - 中间文件（`.aux/.log/.out/.toc`）会落在 `build/`，源目录保持干净。

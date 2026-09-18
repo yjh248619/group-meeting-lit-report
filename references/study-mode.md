@@ -11,7 +11,7 @@
 | 公式／重点 | 术语逐条解释 + 组会预设问答 | **前后文联系**解释 |
 | 服务目标 | 扛住组会上被追问 | 让读者尽可能容易看懂 |
 | 骨架 | `assets/report-template.md` | `assets/study-template.md` |
-| 交付命名 | `<文献简称>_p<起>-<止>_汇报.md` | `<文献简称>_p<起>-<止>_学习版.md` |
+| 交付命名 | `<起>-<止>-汇报.md` | `<起>-<止>-学习.md` |
 
 用户**同时要两版**时，产出两个文件，不要试图合成一份。
 
@@ -83,7 +83,7 @@
 
 ```bash
 python scripts/check_report.py --md <学习版>.md --pages <起>-<止> --mode study \
-    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<简称>_p<起>-<止>_审查记录.md"
+    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<起>-<止>-审查记录.md"
 python scripts/check_report.py --md <学习版>.md --gate phase2 --mode study   # 进入阶段二前，参数同上
 ```
 

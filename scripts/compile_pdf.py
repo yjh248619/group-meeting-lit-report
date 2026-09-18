@@ -7,8 +7,8 @@ compile_pdf.py —— LaTeX 编译与自愈工具（阶段二）
 xelatex 两遍。编译日志会被解析成一张精简的错误清单，便于 Agent 定位到行号后自动修错重编。
 
 用法示例：
-  python compile_pdf.py --tex report/main.tex --outdir report/build
-  python compile_pdf.py --tex main.tex --engine xelatex --clean-first
+  python compile_pdf.py --tex report/478-479-汇报.tex --outdir report/build
+  python compile_pdf.py --tex 478-479-学习.tex --engine xelatex --clean-first
 
 退出码：0 = 编译成功且未发现致命错误；1 = 失败（错误清单见 <outdir>/errors.txt）
 

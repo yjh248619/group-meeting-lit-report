@@ -4,13 +4,23 @@
 
 ```bash
 python scripts/check_report.py --md <报告>.md --gate phase2 \
-    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<简称>_p<起>-<止>_审查记录.md" --figures-full
+    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<起>-<止>-审查记录.md" --figures-full
 python scripts/check_report.py --md <学习版>.md --gate phase2 --mode study   # 学习版务必带 --mode study，其余参数同上
 ```
 
 必须以 `[ok] report-gate passed` 与 `exit 0` 结束。**未通过则不得启动本阶段**——回去处理待确认项，或由用户明确批准后加 `--user-approved-open`（加了这个开关，收尾清单必须声明）。
 
-其余前置：阶段一的两轮审查已完成、用户已看到并认可阶段一交付物、用户已明确选择导出格式。**再加上一条铁律 5 的前置：阶段二的输出目录已确认**——`.tex`、`figures/` 引用、`build/`（含 `main.pdf`、`compile.log`）都落在用户指定的目录里。可以在阶段一目录下开子目录（例如 `<阶段一目录>/pdf/`），但**必须让用户认可这个子目录**，不许自己决定。用户没指定时，报出建议目录并停下等确认。"报告已写完"不等于"闸门已过"。
+其余前置：阶段一的两轮审查已完成、用户已看到并认可阶段一交付物、用户已明确选择导出格式。**再加上一条铁律 5 的前置：阶段二的输出目录已确认**——`.tex`、`figures/` 引用、`build/`（含 `<起>-<止>-汇报.pdf`、`compile.log`）都落在用户指定的目录里。可以在阶段一目录下开子目录（例如 `<阶段一目录>/pdf/`），但**必须让用户认可这个子目录**，不许自己决定。用户没指定时，报出建议目录并停下等确认。"报告已写完"不等于"闸门已过"。
+
+**阶段二产物命名（与阶段一同一规则，不许用 `main`）**：
+
+| 产物 | 汇报版 | 学习版 |
+|---|---|---|
+| 主 `.tex` | `<起>-<止>-汇报.tex` | `<起>-<止>-学习.tex` |
+| PDF | `<起>-<止>-汇报.pdf` | `<起>-<止>-学习.pdf` |
+| Word | `<起>-<止>-汇报.docx` | `<起>-<止>-学习.docx` |
+
+PDF 的名字**跟着 `.tex` 主文件名走**（`compile_pdf.py` 用主文件基名拼输出名），所以只要 `.tex` 起对名，PDF 自动对。Word 走 pandoc 时保持同一基名即可。页码用**书内页**，起止之间用半角连字符。
 
 ---
 
@@ -79,7 +89,7 @@ pandoc   : winget install --id JohnMacFarlane.Pandoc（或 choco install pandoc�
 用户在 VSCode 里装了 LaTeX Workshop，旧流程是「AI 出 LaTeX 代码 → 在 VSCode 里编译出 PDF」。这个流程有三个问题：**要人工点、完整报错看不到、目录/交叉引用需要手动多编译几遍**。改用下面这条命令行闭环，全自动且可自愈：
 
 ```
-latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build main.tex
+latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdir=build <起>-<止>-汇报.tex
 ```
 
 - **`latexmk`** 自动决定要编译几遍（目录、页码、超链接引用一次搞定，不会出现 `??`）。
@@ -100,7 +110,7 @@ latexmk -xelatex -interaction=nonstopmode -halt-on-error -file-line-error -outdi
 | **A. 直接手写 `.tex`（推荐）** | 本类报告的默认 | 报告含英中对照句块、宽表、图注、公式——需要精细控制版式。以 MD 为内容底稿，直接产出结构化 `.tex`，排版可控 |
 | B. `pandoc md → tex` 再修 | 内容以纯段落为主、表格少 | pandoc 对中文与自定义块支持有限，产出后通常仍需大改，不推荐作为首选 |
 
-**Word 一律走路线 C**：`pandoc <报告>.md -o <报告>.docx --reference-doc=<模板.docx> --toc`。**不要**用 LaTeX 转 docx（公式与中文容易崩）。
+**Word 一律走路线 C**：`pandoc <起>-<止>-汇报.md -o <起>-<止>-汇报.docx --reference-doc=<模板.docx> --toc`（学习版把基名换成 `<起>-<止>-学习`）。**不要**用 LaTeX 转 docx（公式与中文容易崩）。
 
 ### 已验证可用的导言区
 
@@ -152,10 +162,10 @@ A/B/C 三档标注在 PDF 里也要保留：建议 A 类引文用小号斜体 + 
 ## Step 4　编译与自愈循环
 
 ```bash
-python <skill>/scripts/compile_pdf.py --tex report/main.tex --outdir report/build
+python <skill>/scripts/compile_pdf.py --tex report/<起>-<止>-汇报.tex --outdir report/build
 ```
 
-- 成功 → 得到 `report/build/main.pdf`；检查页数、目录是否有点开、有无 `??` 未解析引用。
+- 成功 → 得到 `report/build/<起>-<止>-汇报.pdf`；检查页数、目录是否有点开、有无 `??` 未解析引用。
 - 失败 → 读脚本摘要出的错误清单，改 `.tex`，重编译。常见错误与对策：
 
 | 报错 | 原因 | 对策 |
@@ -170,10 +180,10 @@ python <skill>/scripts/compile_pdf.py --tex report/main.tex --outdir report/buil
 ## Step 5　Word 路线（若用户选 Word）
 
 ```bash
-pandoc "<报告>.md" -o "<报告>.docx" --toc --toc-depth=3 --reference-doc=<模板.docx>
+pandoc "<起>-<止>-汇报.md" -o "<起>-<止>-汇报.docx" --toc --toc-depth=3 --reference-doc=<模板.docx>
 ```
 
-- 没有模板就直接 `pandoc "<报告>.md" -o "<报告>.docx" --toc`；若用户想要统一格式，用一份已有 docx 作为 `--reference-doc`。
+- 没有模板就直接 `pandoc "<起>-<止>-汇报.md" -o "<起>-<止>-汇报.docx" --toc`；若用户想要统一格式，用一份已有 docx 作为 `--reference-doc`。**输出基名与 MD 保持一致**，这样 PDF / Word / MD 三份同名，只有扩展名不同。
 - **图片路径**：pandoc 会按 MD 里的相对路径解析，务必在 MD 所在目录下执行，或先 `cd` 到该目录。
 - 转完**要打开检查**：公式会转成 OMML，中文与公式混排常需要手工微调。**先做 Step 0 的残留归一化**——否则 MD 里的 HTML 表格与上下标标签同样不会进 docx。
 - **说明清楚**：Word 与 PDF 是两条独立产线（同一份 MD 分别转出），不要期待两者版式完全一致。

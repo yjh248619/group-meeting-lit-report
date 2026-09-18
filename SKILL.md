@@ -1,7 +1,7 @@
 ---
 name: group-meeting-lit-report
 description: 把学术文献（PDF 图书/论文章节）的指定页码范围，产出为「组会汇报版」或「课题组学习解析版」两种报告之一，经两轮审查闸门后默认交付 Markdown，用户确认后再导出为 LaTeX→PDF 或 Word。默认走组会汇报版：英中逐句翻译 + 内容解析 + 图表读法讲解。用户要「课题组学习」「学习解析版」「按段翻译」「便于看懂版」时改出学习版：按段翻译 + 图表精简讲解（元素逐类讲清）+ 公式的前后文联系。当用户说「组会汇报」「汇报这篇文献的某几页」「逐句翻译并讲解」「解析这两页的图表」「把文献做成汇报材料」「导出成 LaTeX / PDF / Word 汇报稿」时使用本技能。group meeting, literature report, sentence-by-sentence translation, paragraph-by-paragraph translation, study notes, figure explanation, LaTeX export。
-version: 1.5.0
+version: 1.7.0
 agent_created: true
 ---
 
@@ -28,9 +28,17 @@ agent_created: true
 | 骨架 | `assets/report-template.md` | `assets/study-template.md` |
 | 细则 | `references/phase1-translate-review.md` | `references/study-mode.md` |
 | 门禁 | `check_report.py --md … --pages …` | `check_report.py --md … --pages … --mode study` |
-| 交付命名 | `<文献简称>_p<起>-<止>_汇报.md` | `<文献简称>_p<起>-<止>_学习版.md` |
+| 交付命名 | `<起>-<止>-汇报.md` | `<起>-<止>-学习.md` |
 
 **判定顺序**：用户没明说 → 走组会汇报版。用户说了学习版那一组词 → 走学习版。**两版都要 → 产出两个文件**，各自独立过门禁，不要合成一份。
+
+**交付命名是固定的，不许自由发挥**：
+
+- 汇报版 `<起>-<止>-汇报.md`、学习版 `<起>-<止>-学习.md`，审查记录 `<起>-<止>-审查记录.md`。
+- 页码一律用**书内页**，起止之间用**半角连字符** `-`；例：书 p.478–479 → `478-479-汇报.md`。
+- **不加文献简称、不加下划线、不加 `p`**。以前的 `<文献简称>_p<起>-<止>_汇报.md` 写法已废弃。
+- 同一次任务的两版落在**同一个用户指定目录**下，文件名只靠结尾的 `-汇报` / `-学习` 区分。
+- **阶段二产物同规则**：主 `.tex` 文件叫 `<起>-<止>-汇报.tex`（学习版 `<起>-<止>-学习.tex`），导出的 PDF / Word 因此同名——`compile_pdf.py` 的 PDF 名跟着 `.tex` 主文件名走，`.tex` 起对名 PDF 就自然对；Word 走 pandoc 时保持同一基名，即 `<起>-<止>-汇报.docx`。**不要把主文件叫 `main.tex`**。
 
 **两条线共用同一套结构锚点**（`## 〇、阅读说明与页码对账`、`## 一、章节地图`、`## 二、第 X 页`、`### n.m`、`## 首轮自检与修订记录`、`## 待确认项`、`### 附 N`），差别只在 `2.2` 一节用 `#### 句 N` 还是 `#### 第 N 段`。五条铁律、三档标注、收尾清单、豁免开关对两种模式**完全一致**。
 
@@ -65,7 +73,7 @@ agent_created: true
 | 使用的豁免开关 | 用了 `--allow-scan-pages` 等就写明，未用写"无" |
 | 门禁结果 | `check_report.py` 的退出码与成功串 |
 
-**交付物里不放过程凭据**：`## 首轮自检与修订记录` 与 `## 待确认项` 写进 `<用户指定目录>/_review/<简称>_p<起>-<止>_审查记录.md`（骨架见 `assets/review-template.md`），门禁带 `--review` 指向它。**这两项只在上表里汇报**，不塞进报告正文——读者要看的是文献，不是工作日志。
+**交付物里不放过程凭据**：`## 首轮自检与修订记录` 与 `## 待确认项` 写进 `<用户指定目录>/_review/<起>-<止>-审查记录.md`（骨架见 `assets/review-template.md`），门禁带 `--review` 指向它。**这两项只在上表里汇报**，不塞进报告正文——读者要看的是文献，不是工作日志。
 
 ## 文档优先级仲裁表（冲突时谁赢）
 
@@ -92,8 +100,8 @@ agent_created: true
 
 | 阶段 | 启动条件 | 交付物 | 必需工具（插件） |
 |---|---|---|---|
-| **阶段一** | 用户给出文献路径 + 页码范围 **+ 输出目录（铁律 5）** | 组会汇报版：`<文献简称>_p<起>-<止>_汇报.md`（按 `assets/report-template.md`）；学习版：`<文献简称>_p<起>-<止>_学习版.md`（按 `assets/study-template.md`）；两者都带 `figures/` 高清图目录、`evidence/` 取证素材，以及 `_review/<简称>_p<起>-<止>_审查记录.md`（自检与待确认项，**不随交付物**） | **Python + pymupdf**（必需）；可选 pypdf |
-| **阶段二** | 阶段一闸门通过 **且** 用户明确选择导出格式；**若阶段一 MD 来自 HTML 机械转换，先跑 `scripts/normalize_md_residue.py` 并重跑门禁**（否则 pandoc 会静默丢掉原始 HTML 表格） | `build/main.tex` + `main.pdf`（默认）；或 `main.docx` | **TeX Live**（xelatex + latexmk，PDF 必需）；**pandoc**（仅 Word 需要） |
+| **阶段一** | 用户给出文献路径 + 页码范围 **+ 输出目录（铁律 5）** | 组会汇报版：`<起>-<止>-汇报.md`（按 `assets/report-template.md`）；学习版：`<起>-<止>-学习.md`（按 `assets/study-template.md`）；两者都带 `figures/` 高清图目录、`evidence/` 取证素材，以及 `_review/<起>-<止>-审查记录.md`（自检与待确认项，**不随交付物**） | **Python + pymupdf**（必需）；可选 pypdf |
+| **阶段二** | 阶段一闸门通过 **且** 用户明确选择导出格式；**若阶段一 MD 来自 HTML 机械转换，先跑 `scripts/normalize_md_residue.py` 并重跑门禁**（否则 pandoc 会静默丢掉原始 HTML 表格） | `build/<起>-<止>-汇报.tex` + `build/<起>-<止>-汇报.pdf`（默认）；或 `<起>-<止>-汇报.docx`。学习版把 `-汇报` 换成 `-学习` | **TeX Live**（xelatex + latexmk，PDF 必需）；**pandoc**（仅 Word 需要） |
 
 ## 跨 Agent 使用（本技能是开放标准的 Skill，不只 WorkBuddy 能用）
 
@@ -172,10 +180,10 @@ foreach($e in @("xelatex","latexmk","pandoc")){ "$e => " + ((& where.exe $e 2>&1
 ```bash
 python scripts/extract_pages.py --pdf "<文献.pdf>" --pages 491-492 --book-offset 15 --out work --dpi 430
 python scripts/check_report.py --md <报告>.md --pages 476-477 \
-    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<简称>_p<起>-<止>_审查记录.md" --figures-full
+    --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<起>-<止>-审查记录.md" --figures-full
 python scripts/check_report.py --md <报告>.md --gate phase2      # 进入阶段二前的硬前置，参数同上
 python scripts/check_report.py --md <学习版>.md --pages 476-477 --mode study   # 学习版骨架，参数同上
-python scripts/compile_pdf.py --tex report/main.tex --outdir report/build
+python scripts/compile_pdf.py --tex report/<起>-<止>-汇报.tex --outdir report/build
 ```
 
 ### 具名豁免开关（替代模糊例外）

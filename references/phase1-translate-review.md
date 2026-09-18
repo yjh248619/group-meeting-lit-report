@@ -4,7 +4,7 @@
 
 ```
 <用户指定目录>/                          ← 铁律 5：写入前必须确认，不许自己挑
-├── <文献简称>_p<起>-<止>_汇报.md        ← 主交付物（组会汇报版；走学习版时改名为 _学习版.md）
+├── <起>-<止>-汇报.md                     ← 主交付物（组会汇报版；走学习版时改名为 <起>-<止>-学习.md）
 │                                          交付物里**不放**自检记录与待确认项
 ├── figures/                             ← 高清图，供 PPT 复用；MD 与后续 LaTeX 都引用它
 │   ├── fig_<编号>.png
@@ -13,7 +13,7 @@
 │   ├── pages/page_<pdf页>.png           ← 整页渲染图
 │   └── vectors/page_<pdf页>.txt         ← 矢量元素坐标 + 文本层词坐标
 └── _review/
-    ├── <文献简称>_p<起>-<止>_审查记录.md  ← 自检与修订记录 + 待确认项（门禁 `--review` 指向它）
+    ├── <起>-<止>-审查记录.md            ← 自检与修订记录 + 待确认项（门禁 `--review` 指向它）
     ├── pass1_checklist.md               ← 第一轮审查的逐条过程记录
     └── pass2_open_items.md              ← 第二轮审查的待确认项清单
 ```
@@ -247,7 +247,7 @@ python <skill>/scripts/extract_pages.py --pdf "<文献.pdf>" --pages <起>-<止>
 
    ```bash
    python scripts/check_report.py --md <报告>.md --pages <起>-<止> \
-       --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<简称>_p<起>-<止>_审查记录.md" \
+       --outdir "<用户确认的输出目录>" --review "<用户指定目录>/_review/<起>-<止>-审查记录.md" \
        --figures-full
    # 学习版再加 --mode study
    ```

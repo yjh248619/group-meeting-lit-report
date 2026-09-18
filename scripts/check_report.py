@@ -22,7 +22,7 @@ R6/R12 待确认项闸门、R8 数值表出处、R9 英文直引出处、R10 推
   python check_report.py --md 报告.md --figures-full                   # 图表按完整清单查六项
   python check_report.py --md 报告.md --gate phase2                    # 进入阶段二前的硬前置
   python check_report.py --md 报告.md --gate phase2 --user-approved-open
-  python check_report.py --md 学习版.md --mode study                    # 校验学习版骨架
+  python check_report.py --md 478-479-学习.md --mode study               # 校验学习版骨架
   python check_report.py --md 报告.md --strict-content                 # 内容类也阻断
   python check_report.py --md 报告.md --json                           # 机器可读结果
 

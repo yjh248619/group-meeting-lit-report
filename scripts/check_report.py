@@ -64,6 +64,7 @@ RULE_HELP = {
     "S7": "学习版的图表讲解要『精简但不漏元素』，共十条：回答什么问题 / 为什么要有这张图 / 怎么读 / 坐标轴 / 点 / 线段 / 符号 / 颜色 / 图例 / 这张图还能说明什么。图上出现过的每一类元素都要有一句解释它代表什么统计量。",
     "S8": "学习版的重点公式要写前后文联系：首次定义在哪一页／哪一公式（标位置）、本页为什么用它、后文还会在哪用。缺任一项都会让读者接不上。",
     "R13": "报告必须落在用户确认过的输出目录里：带 `--outdir <目录>` 跑门禁，脚本会核对报告的实际位置是否在该目录内。不一致说明写错了地方，先搬到指定目录再重跑。",
+    "R14": "凡『希腊字母参数 ≈/＝ 数值』的断言（如 `β₁ ≈ 14.7`、`β₁ + β₂ ≈ 114`），该行或其上下 1 行内必须有来源标记：`p.N` / `式 (X.Y)` / `图 X.Y` / `表 X.Y` / `【原文 p.N】` / `【推论】` / `【按图读数】`。缺了就说明这个数读者无从验证——要么补来源，要么补推导（防幻觉规则 I）。",
 }
 
 PLACEHOLDER_PAT = re.compile(r"TODO|FIXME|TBD|\{\{|\}\}|XX\s*页|待填|待补|此处省略|略去")
@@ -362,6 +363,25 @@ def check_r7(lines, issues, full=False):
                                 "该图表详解缺要素：%s" % "、".join(miss)))
 
 
+# R14：符号取值断言（希腊字母参数 + 近似/等号 + 数值）
+SYM_VALUE_RE = re.compile(r"[α-ωΑ-Ω]\s*[₀-₉0-9]?\s*(?:≈|=|≃|≅)\s*[-−]?\d")
+# 就近可接受的来源标记
+SOURCE_MARK_RE = re.compile(
+    r"p{1,2}\.\s*\d|书\s*p|式\s*\(|图\s*\d+[.\-]\d|表\s*\d+[.\-]\d|【原文|【推论】|【按图")
+
+
+def check_r14(lines, issues):
+    """R14：『希腊字母 ≈/＝ 数值』必须就近给出处。防幻觉规则 I 的机器可查那一半。"""
+    for i, ln in enumerate(lines):
+        for m in SYM_VALUE_RE.finditer(ln):
+            window = "\n".join(lines[max(0, i - 1): i + 2])
+            if not SOURCE_MARK_RE.search(window):
+                issues.append(Issue(
+                    "R14", "warn", "第 %d 行" % (i + 1),
+                    "符号取值缺来源：`%s`（本行及上下 1 行内没有 p.N / 式 (X.Y) / 图 X.Y / 表 X.Y / "
+                    "【原文】/【推论】/【按图读数】）｜%s" % (m.group(0).strip(), ln.strip()[:60])))
+
+
 def check_r13(md_path, outdir, issues):
     """输出目录闸门：交付物必须落在用户确认过的目录里。
     没提供 --outdir 时不做任何判定（既有用法与结果不变）。"""
@@ -608,6 +628,7 @@ def main():
         check_r11(text, issues, offset, pages_hint)
         open_items = check_r6(lines_aux, text_aux, issues, args.gate, args.user_approved_open, exempt)
         check_r13(args.md, args.outdir, issues)
+        check_r14(lines, issues)
     except Exception as exc:                                  # 异常不得静默通过
         print("[!!] check-report 异常，不得静默通过。请修复后重试：%s" % exc)
         return 1

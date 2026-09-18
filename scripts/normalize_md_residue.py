@@ -15,7 +15,7 @@ r"""normalize_md_residue.py —— 阶段一 MD 的 HTML 残留归一化（阶�
   2. 相邻 sub+sup           -> $_{X}^{Y}$   （正则限「标签内不含尖括号」，否则会跨标签错配）
   3. sup 内含 sub           -> $^{-\beta_4}$ 这类（逐个显式处理并断言无遗留嵌套）
   4. sub X                  -> $_X$
-  5. sup Y                  -> $^Y$          （内容以 \ 命令开头时不套 {}，避免产生 }} 命中门禁 R4）
+  5. sup Y                  -> $^Y$          （内容以 \ 命令开头时不套 {}，片段更短）
   6. strong                 -> ** **
   7. br                     -> 空格
   8. table 块               -> 管道表（colspan 文本落首列，其余列留空）
@@ -24,7 +24,7 @@ r"""normalize_md_residue.py —— 阶段一 MD 的 HTML 残留归一化（阶�
 
 两道安全网（任一不通过则**拒绝落盘**）：
   · 纯文本骨架全等：剥掉全部 HTML/Markdown/LaTeX 记号后逐字比较，必须一字不差
-  · R4 守卫：不得引入 {{ 或 }}（那是门禁 check_report.py 的占位符判定）
+  · R4 守卫：不得引入占位符花括号（`{{` 一律算；`}}` 只在非数学行上算——见 check_report.py 的 R4）
 
 用法：
   python normalize_md_residue.py --md <报告>.md            # dry-run，只报告
@@ -52,7 +52,7 @@ def tex(s: str) -> str:
 
 
 def wrap(s: str) -> str:
-    """上标内容以反斜杠命令开头时不再套一层花括号，否则会产生 }} 命中门禁 R4。"""
+    """上标内容以反斜杠命令开头时不再套一层花括号——`x^\\alpha` 与 `x^{\\alpha}` 等效，前者更短。"""
     return s if s.startswith("\\") else "{" + s + "}"
 
 
@@ -61,15 +61,18 @@ GREEK = {"α": r"\alpha", "β": r"\beta", "γ": r"\gamma", "θ": r"\theta",
 
 
 def nest_math(a: str, b: str) -> str:
-    """把「上标里再套下标」这类嵌套（如 −β 与 4）拼成一个数学片段。
-    下标是单字符时不加花括号，且末尾若出现 }} 则插入 \\! 断开 —— 两者都是为了不命中门禁 R4。"""
+    """把「上标里再套下标」这类嵌套（如 −β 与 4）拼成一个数学片段。下标是单字符时不加花括号，只为片段更短。
+
+    历史坑：这里曾用 `.replace("}}", "}\\!}")` 往公式里插一个负细空格，纯粹为了绕开门禁 R4 对 `}}`
+    的误报。R4 已修正为「`}}` 只在非数学行上判定」，该 hack 已移除——它会让公式渲染出错。
+    """
     a = a.replace("\u2212", "-")
     for g, t in GREEK.items():
         a = a.replace(g, t)
     sub = tex(b)
     if not (len(sub) == 1 or sub.startswith("\\")):
         sub = "{" + sub + "}"
-    return ("$^{%s_%s}$" % (a, sub)).replace("}}", "}\\!}")
+    return "$^{%s_%s}$" % (a, sub)
 
 
 class TableParser(HTMLParser):
@@ -200,11 +203,24 @@ def normalize(text: str, log: list) -> str:
     log.append("10. 残留 HTML 标签：%d %s" % (len(left), sorted(set(left))[:6]))
     if left:
         raise SystemExit("[!!] 仍有残留标签，中止：%s" % sorted(set(left))[:6])
-    for bad in ("{{", "}}"):
-        if bad in text:
-            i = text.index(bad)
-            raise SystemExit("[!!] 引入 %s（会命中门禁 R4）：...%s..." % (bad, text[max(0, i - 60):i + 30]))
-    log.append("    R4 守卫：未引入双花括号 ✓")
+    # R4 守卫：口径与 check_report.py 对齐——`{{` 一律算残留；
+    # `}}` 只在**非数学行**上算（LaTeX 的 \frac{a}{b}、x^{-\beta_{4}} 天然产生 `}}`）
+    def _brace_offenses(s: str) -> int:
+        n = 0
+        for line in s.split("\n"):
+            if "{{" in line:
+                n += 1
+            elif "}}" in line and not re.search(r"\$|\\[a-zA-Z]+", line):
+                n += 1
+        return n
+
+    if _brace_offenses(text):
+        for line in text.split("\n"):
+            if "{{" in line or ("}}" in line and not re.search(r"\$|\\[a-zA-Z]+", line)):
+                i = text.index(line)
+                raise SystemExit("[!!] 引入双花括号残留（会命中门禁 R4）：...%s..."
+                                 % text[max(0, i - 60):i + 30])
+    log.append("    R4 守卫：未引入占位符花括号 ✓")
     return text
 
 

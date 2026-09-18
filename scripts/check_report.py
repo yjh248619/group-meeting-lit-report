@@ -67,7 +67,10 @@ RULE_HELP = {
     "R14": "凡『希腊字母参数 ≈/＝ 数值』的断言（如 `β₁ ≈ 14.7`、`β₁ + β₂ ≈ 114`），该行或其上下 1 行内必须有来源标记：`p.N` / `式 (X.Y)` / `图 X.Y` / `表 X.Y` / `【原文 p.N】` / `【推论】` / `【按图读数】`。缺了就说明这个数读者无从验证——要么补来源，要么补推导（防幻觉规则 I）。",
 }
 
-PLACEHOLDER_PAT = re.compile(r"TODO|FIXME|TBD|\{\{|\}\}|XX\s*页|待填|待补|此处省略|略去")
+PLACEHOLDER_PAT = re.compile(r"TODO|FIXME|TBD|\{\{|XX\s*页|待填|待补|此处省略|略去")
+# 单独的 `}}` 只在"非数学行"上才算残留：LaTeX 的 \frac{a}{b}、x^{-\beta_{4}} 会自然产生 `}}`
+BARE_CLOSE_BRACE = "}}"
+MATH_HINT_PAT = re.compile(r"\$|\\[a-zA-Z]+")
 CN_NUM = "〇一二三四五六七八九十"
 H2_SEC_PAT = re.compile(r"^##\s*([" + CN_NUM + r"]+)、\s*(.+?)\s*$")
 H3_SUB_PAT = re.compile(r"^###\s*(\d+)\.(\d+)\s*(.*)$")
@@ -308,11 +311,22 @@ def check_r3(lines, issues):
 
 
 def check_r4(text, issues):
-    for m in PLACEHOLDER_PAT.finditer(text):
-        ln = text[:m.start()].count("\n") + 1
-        issues.append(Issue("R4", "block", "第 %d 行" % ln, "残留占位符 %r" % m.group(0)))
-        if len([1 for x in issues if x.rule == "R4"]) >= 12:
-            break
+    """R4：残留占位符。
+
+    `}}` 单独出现时**只在非数学行上判定**——LaTeX 的 `\\frac{a}{b}` 与 `x^{-β_{4}}`
+    会自然产生 `}}`，一律当残留会误伤正常的公式排版。
+    """
+    for i, line in enumerate(text.split("\n"), 1):
+        frag = None
+        m = PLACEHOLDER_PAT.search(line)
+        if m:
+            frag = m.group(0)
+        elif BARE_CLOSE_BRACE in line and not MATH_HINT_PAT.search(line):
+            frag = BARE_CLOSE_BRACE
+        if frag:
+            issues.append(Issue("R4", "block", "第 %d 行" % i, "残留占位符 %r" % frag))
+            if len([1 for x in issues if x.rule == "R4"]) >= 12:
+                break
 
 
 def check_r5(lines, issues):

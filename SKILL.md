@@ -1,7 +1,7 @@
 ---
 name: group-meeting-lit-report
 description: 把学术文献（PDF 图书/论文章节）的指定页码范围，产出为「组会汇报版」或「课题组学习解析版」两种报告之一，经两轮审查闸门后默认交付 Markdown，用户确认后再导出为 LaTeX→PDF 或 Word。默认走组会汇报版：英中逐句翻译 + 内容解析 + 图表读法讲解。用户要「课题组学习」「学习解析版」「按段翻译」「便于看懂版」时改出学习版：按段翻译 + 图表精简讲解（元素逐类讲清）+ 公式的前后文联系。当用户说「组会汇报」「汇报这篇文献的某几页」「逐句翻译并讲解」「解析这两页的图表」「把文献做成汇报材料」「导出成 LaTeX / PDF / Word 汇报稿」时使用本技能。group meeting, literature report, sentence-by-sentence translation, paragraph-by-paragraph translation, study notes, figure explanation, LaTeX export。
-version: 1.8.0
+version: 1.8.1
 agent_created: true
 ---
 

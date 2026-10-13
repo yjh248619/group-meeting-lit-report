@@ -1,0 +1,31 @@
+# WorkBuddy 工作区数据：记忆、备份、缓存 —— 不属于技能内容，绝不发布
+.workbuddy-ai/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 排版构建产物（生成物不入库；源码 .tex 若在技能目录内则保留）
+build/
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+
+# 凭据：任何人都不要把 token 提交上来
+*_token*.txt
+token.txt
+.env

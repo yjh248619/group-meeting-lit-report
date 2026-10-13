@@ -5,15 +5,16 @@ check_report.py —— 阶段一报告静态校验（门禁脚本，退出码即
 
 设计对齐工程实践里的"静态门禁"：把"我记得我审过了"变成"脚本能验出来"。
 两级判定：
-  · 结构类（R1–R6 / 学习版的 S2）：不合格 -> exit 1，**不得宣称阶段一完成**
-  · 内容类（R7–R12 / 学习版的 S7–S8）：只警告，不影响退出码（可用 --strict-content 升级为阻断）
+  · 结构类（R1–R6 / R15 / 学习版的 S2）：不合格 -> exit 1，**不得宣称阶段一完成**
+  · 内容类（R7–R12 / R14 / 学习版的 S7–S8）：只警告，不影响退出码（可用 --strict-content 升级为阻断）
 
 两种模式（--mode，默认 report，既有用法与结果完全不变）：
   · report  组会汇报版骨架：逐句翻译（R2）+ 图表四讲（R7）
   · study   课题组学习版骨架：按段翻译（S2）+ 图表元素覆盖（S7）+ 公式前后文联系（S8）
 
 两模式共用：R1 页码对账、R3 小节编号、R4 占位符、R5 修订记录、
-R6/R12 待确认项闸门、R8 数值表出处、R9 英文直引出处、R10 推断标注、R11 页码越界。
+R6/R12 待确认项闸门、R8 数值表出处、R9 英文直引出处、R10 推断标注、R11 页码越界、R14 符号取值出处。
+仅汇报版：R15 交付物不得出现「首轮自检与修订记录」「待确认项」（只进 `_review/` 审查记录）。
 
 用法：
   python check_report.py --md 报告.md
@@ -49,7 +50,7 @@ from collections import OrderedDict
 # ----------------------------------------------------------------------------
 RULE_HELP = {
     "R1": "在『阅读说明』里补一条页码对账，形如 `PDF 491 = 书 476`；或放一张含『课本页 / PDF 页』两列的表。没有对账，全篇页码引用都不可信。",
-    "R2": "每个句子对用固定格式：`#### 句 N` + `- **原文**：…` + `- **译文**：…`；N 从 1 起连续、不得跳号或重号。",
+    "R2": "每个翻译单元用固定格式：逐句 `#### 句 N`、整段 `#### 第 N 段`，各自配 `- **原文**：…` + `- **译文**：…`；N 从 1 起连续、不得跳号或重号。整份报告通篇用同一种粒度（粒度在开工前向用户确认）。",
     "R3": "小节编号必须与所属章节序号一致且从 1 连续：`## 二、…` 下面只能用 2.1、2.2、2.3…；附录用 `### 附 1`、`附 2`…",
     "R4": "删除占位符，或把未完成的部分改成明确的待确认项（`<待确认:…>`），不要留在正文里。",
     "R5": "在文末补一节「首轮自检与修订记录」，用表格列『问题 / 性质 / 核查依据与处置』。这是审查确实发生过的凭据。",
@@ -65,6 +66,7 @@ RULE_HELP = {
     "S8": "学习版的重点公式要写前后文联系：首次定义在哪一页／哪一公式（标位置）、本页为什么用它、后文还会在哪用。缺任一项都会让读者接不上。",
     "R13": "报告必须落在用户确认过的输出目录里：带 `--outdir <目录>` 跑门禁，脚本会核对报告的实际位置是否在该目录内。不一致说明写错了地方，先搬到指定目录再重跑。",
     "R14": "凡『希腊字母参数 ≈/＝ 数值』的断言（如 `β₁ ≈ 14.7`、`β₁ + β₂ ≈ 114`），该行或其上下 1 行内必须有来源标记：`p.N` / `式 (X.Y)` / `图 X.Y` / `表 X.Y` / `【原文 p.N】` / `【推论】` / `【按图读数】`。缺了就说明这个数读者无从验证——要么补来源，要么补推导（防幻觉规则 I）。",
+    "R15": "汇报版交付物里不得出现「首轮自检与修订记录」「待确认项」这两节——它们是过程凭据，写进同目录 `_review/<起>-<止>-审查记录.md`，门禁用 `--review` 指向它。把这两节从交付物里删掉（内容搬到审查记录），再重跑。学习版不受此规则约束。",
 }
 
 PLACEHOLDER_PAT = re.compile(r"TODO|FIXME|TBD|\{\{|XX\s*页|待填|待补|此处省略|略去")
@@ -239,13 +241,32 @@ def check_r1(lines, text, issues):
     return offset
 
 
-def check_r2(lines, issues):
-    """句子对编号连续 + 原文/译文成对"""
-    seq = []
-    for i, ln in enumerate(lines):
-        m = SENT_PAT.match(ln.strip())
-        if m:
-            seq.append((i, int(m.group(1))))
+def check_r2(lines, issues, mode_hint="auto"):
+    """句子/段落对编号连续 + 原文/译文成对。
+
+    汇报版支持两种粒度（开工前由用户选定，见 SKILL.md）：
+      · 逐句 —— `#### 句 N`（默认）
+      · 整段 —— `#### 第 N 段`
+    自动识别：整份报告通篇用 `第 N 段` 时按段查（块边界放到下一个标题，
+    因为一段的原文/译文可能很长），否则按句查（沿用 8 行窗口）。
+    """
+    para_seq = [(i, int(m.group(1))) for i, ln in enumerate(lines)
+                if (m := PARA_PAT.match(ln.strip()))]
+    sent_seq = [(i, int(m.group(1))) for i, ln in enumerate(lines)
+                if (m := SENT_PAT.match(ln.strip()))]
+
+    if mode_hint == "para" or (not sent_seq and para_seq):
+        if not para_seq:
+            issues.append(Issue("R2", "block", "全文",
+                                "未找到任何 `#### 句 N` 或 `#### 第 N 段` 翻译单元"
+                                "（逐句/整段翻译都是本技能的必备产出，粒度在开工前确认）"))
+            return
+        label, unit = "段", "段"
+        seq, window = para_seq, None            # window=None → 用块边界
+    else:
+        label, unit = "句", "句"
+        seq, window = sent_seq, 8
+
     if not seq:
         issues.append(Issue("R2", "block", "全文", "未找到任何 `#### 句 N` 句子对（逐句翻译是本技能的必备产出）"))
         return
@@ -261,17 +282,23 @@ def check_r2(lines, issues):
     runs.append(cur)
     for run in runs:
         if run[0] != 1:
-            issues.append(Issue("R2", "block", "句 %d" % run[0],
-                                "句子编号不是从 1 开始（本段首个编号为 %d）" % run[0]))
+            issues.append(Issue("R2", "block", "%s %d" % (label, run[0]),
+                                "%s编号不是从 1 开始（本段首个编号为 %d）" % (unit, run[0])))
         if run != list(range(run[0], run[0] + len(run))):
-            issues.append(Issue("R2", "block", "句 %d–%d" % (run[0], run[-1]), "句子编号有跳号或重号"))
+            issues.append(Issue("R2", "block", "%s %d–%d" % (label, run[0], run[-1]),
+                                "%s编号有跳号或重号" % unit))
     # 原文/译文成对
     for idx, _n in seq:
-        chunk = "\n".join(lines[idx: idx + 8])
+        if window is None:
+            end = next((j for j in range(idx + 1, len(lines))
+                        if re.match(r"^#{1,6}\s+", lines[j])), len(lines))
+            chunk = "\n".join(lines[idx:end])
+        else:
+            chunk = "\n".join(lines[idx: idx + window])
         if "**原文**" not in chunk:
-            issues.append(Issue("R2", "block", lines[idx].strip(), "该句缺 `- **原文**：…`"))
+            issues.append(Issue("R2", "block", lines[idx].strip(), "该%s缺 `- **原文**：…`" % unit))
         if "**译文**" not in chunk:
-            issues.append(Issue("R2", "block", lines[idx].strip(), "该句缺 `- **译文**：…`"))
+            issues.append(Issue("R2", "block", lines[idx].strip(), "该%s缺 `- **译文**：…`" % unit))
 
 
 def check_r3(lines, issues):
@@ -394,6 +421,31 @@ def check_r14(lines, issues):
                     "R14", "warn", "第 %d 行" % (i + 1),
                     "符号取值缺来源：`%s`（本行及上下 1 行内没有 p.N / 式 (X.Y) / 图 X.Y / 表 X.Y / "
                     "【原文】/【推论】/【按图读数】）｜%s" % (m.group(0).strip(), ln.strip()[:60])))
+
+
+def check_r15(md_lines, review_path, issues):
+    """R15：汇报版交付物本体不得出现「首轮自检与修订记录」「待确认项」。
+
+    这两节是过程凭据，只写进 `_review/<起>-<止>-审查记录.md`，由 `--review` 指给门禁。
+    判定只看**交付物本体**（md_lines），不合并审查记录——所以把两节留在交付物里、
+    同时又传了 `--review` 的"两边都写"也会被这里拦住。
+
+    顺带提示：汇报版没传 `--review` 时，R5/R6/R12 只能查交付物本体，
+    等于逼着把两节写回交付物——此时给出显式警告，指向正确的做法。
+    """
+    sec_pat = re.compile(r"^\s{0,3}#{1,6}\s*(首轮自检与修订记录|自检与修订记录|修订记录|"
+                         r"核查与修订|审查记录|待确认项)\s*$")
+    hits = [ln.strip() for ln in md_lines if sec_pat.match(ln)]
+    for h in hits:
+        issues.append(Issue(
+            "R15", "block", "交付物",
+            "汇报版交付物里出现了过程凭据小节 `%s`——这两节只进 `_review/<起>-<止>-审查记录.md`，"
+            "交付物里必须删掉（内容搬过去），再用 `--review` 指给门禁。" % h))
+    if not review_path and not hits:
+        issues.append(Issue(
+            "R15", "warn", "参数",
+            "汇报版未传 `--review`：自检与待确认项无处安放，容易被写回交付物。"
+            "请把这两节写进 `_review/<起>-<止>-审查记录.md` 并加 `--review \"<该文件>\"`。"))
 
 
 def check_r13(md_path, outdir, issues):
@@ -643,6 +695,8 @@ def main():
         open_items = check_r6(lines_aux, text_aux, issues, args.gate, args.user_approved_open, exempt)
         check_r13(args.md, args.outdir, issues)
         check_r14(lines, issues)
+        if args.mode != "study":
+            check_r15(lines, args.review, issues)
     except Exception as exc:                                  # 异常不得静默通过
         print("[!!] check-report 异常，不得静默通过。请修复后重试：%s" % exc)
         return 1

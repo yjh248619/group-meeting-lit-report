@@ -789,7 +789,7 @@ yan 提出两件事：
 
 ---
 
-### 2026-10-13（二）：技能目录改成 git 仓库 + 一条命令同步到 GitHub
+### 2026-10-13（二）：把仓库维护内容从技能内容里摘出去（发布物净化）
 
 #### 日期说明
 
@@ -797,69 +797,59 @@ yan 提出两件事：
 
 #### 需求·触因
 
-yan 问：「有没有办法每次改完自动同步到 github」。确认口径为：**把技能目录变成本地 git 仓库，改完规则文档后自动 commit + push**（不是定时任务，也不是继续用纯 API 上传）。
+yan 指出：**「GitHub 上的 skill 没有写'修改后自动更新 GitHub'的规则吧？若写了进行修改，别人用这个 skill 用不着这个功能。」**
 
-此前的同步方式（`_work/gh_upload.py`）有三个实际痛点：
+核查后确认——**确实写了，而且不该写**。上一轮（同日第 1 条之后的"GitHub 自动化同步"改动）把仓库维护流程直接写进了 `SKILL.md`：
 
-1. **纯 API 全量重建 tree**：不做 diff，每次全传，且**看不到改了什么**——远端 5 条提交的信息全是 `Add assets, references, scripts and state`，历史等于没有。
-2. **依赖临时发布副本**：`README.md` / `LICENSE` 是打包时"注入"到 `_work/publish/` 副本里的，**技能目录本身没有这两个文件**，容易和真身脱节。
-3. **每次都要人工记得去跑**，与"改动要留痕"的元规则绑不紧。
+- 「改完就同步到 GitHub（元规则，强制）」整节，含**维护者本机的 token 文件路径**；
+- 捆绑脚本表里登记了 `scripts/sync_github.py`，把一个**维护工具**写成了技能功能；
+- "技能目录本身就是一个 git 仓库"这种**只对维护者机器成立**的说法，出现在面向使用者的规范里。
+
+**根本错误**：技能是给「做文献汇报的人」用的，他们拿到的是一个汇报工具，不是"如何维护 yjh248619 这个仓库"。**把维护者本地工作流混进发布物，既对使用者无用，又暴露了私人路径。**
 
 #### 规则摘要
 
-**（一）技能目录本身即 git 仓库**
+**（一）技能内容与仓库维护分离**
 
-- `git init -b main`，远端 `origin = https://github.com/yjh248619/group-meeting-lit-report`（公开，默认分支 `main`）。
-- 本地历史与远端对齐（`reset --mixed origin/main`），本轮改动作为新提交叠上去，**没有强推、没有丢历史**。
-- `LICENSE` / `README.md` 从远端取回技能目录，成为真身的一部分——以后同步自然带上，不再靠注入副本。
+- `SKILL.md` 删除整节「改完就同步到 GitHub」；捆绑脚本表删掉 `sync_github.py` 行。
+- 该节内容（连同背后来龙去脉）移入新建的 `MAINTAINERS.md`，**并加进 `.gitignore`——本地可查、不上 GitHub**。
+- `scripts/sync_github.py` 加进 `.gitignore` 并 `git rm --cached` 从仓库移除（本地文件保留）。
+- `optimization-record.md` 里纯属"仓库维护"的那条记录也移进 `MAINTAINERS.md`——**演进记录应记"技能怎么变好"，不是"仓库怎么推"**。
 
-**（二）`.gitignore`（新增，安全关键）**
+**（二）保留对使用者真正有用的部分**
 
-- 排除 `.workbuddy-ai/`（工作区记忆、备份——**绝不能公开发布**）、`__pycache__/`、编辑器与系统文件、LaTeX 构建产物。
-- **额外加了凭据防护**：`*_token*.txt`、`token.txt`、`.env` 一律挡在库外。
+- `SKILL.md`「已知环境」保留 **git 推送需配代理**（502 不是权限问题）这条：使用者若也要推自己的仓库，同样会踩。
+- 写法改为通用建议（从环境变量读端口、不指向任何私有脚本）。
+- 「打包分发时排除 `.workbuddy-ai/`」保留：这是给**任何分发者**的通用提醒。
 
-**（三）`scripts/sync_github.py`（新增，一条命令同步）**
+**（三）发布物自查（固化）**
 
-- `python scripts/sync_github.py` → `add -A` + commit + push；提交信息自动生成为「`v<版本>：同步 <变更归类>` + 文件清单 + 日期」。
-- **token 只从文件读**（`_work/gh_token.txt` 或 `~/.workbuddy-ai/gh_token.txt`），绝不进命令行——带 token 的命令行会触发安全弹窗并超时（这是之前踩过三次的坑）。
-- 推前 `git fetch` 并比较本地/远端；**远端有本地没有的提交时直接停下报错**，不许强推覆盖。
-- 报错时把 token 打码后再输出。
-- 三种只读模式：`--dry-run`（只看会提交什么）、`--check`（只看差异）、`--no-push`（只提交不推送）。
-
-**（四）元规则：改完就同步**
-
-- `SKILL.md` 的自我维护一节新增「改完就同步到 GitHub（元规则，强制）」：改了规则类文件 → 写演进记录 → **同一轮内跑一次同步**，三步不能漏最后一步。
-- 打包分发说明与 `.gitignore` 的排除口径对齐（都排除 `.workbuddy-ai/`）。
+- `MAINTAINERS.md` 里给出核实命令：
+  `git ls-tree -r --name-only origin/main | grep -E "workbuddy-ai|MAINTAINERS|sync_github|token"`，
+  应无输出。
 
 #### 验收
 
 | 项 | 结果 |
 |---|---|
-| 历史对齐 | 远端 5 条提交完整保留；本地 `reset --mixed` 后工作树保留全部文件，`LICENSE`/`README.md` 已恢复、未被误删 |
-| 首次推送 | `24452ab..058591c  main -> main`，远端 20 个文件，含 `LICENSE`/`README.md`/`.gitignore`/`sync_github.py` |
-| 提交信息 | 从「Add assets, references, scripts and state」变为「`v1.9.0：同步 (根目录)×3、assets、references、scripts×2`」+ 文件清单 |
-| secret 防护 | `git status` 无 token 文件进入待提交；`.gitignore` 含 `*_token*.txt` |
-| dry-run | 正确列出 7 个待同步文件，且 **`.workbuddy-ai/` 未出现**（被排除） |
-| 一致性校验 | `local == origin`（SHA 相同）、`--check` 报"已与远端一致" |
+| `SKILL.md` | 已无「改完就同步」整节、无 `sync_github.py` 行、无维护者 token 路径 |
+| 全库私人信息扫描 | `git grep "C://Users//yan/|WorkBuddy//2026-09-14"` **零命中** |
+| `optimization-record.md` | 剩余条目均为技能演进（含本条）；维护类条目已移出 |
+| 索引状态 | `scripts/sync_github.py` 已从索引移除（`D`），本地文件仍在 |
+| 忽略生效 | `MAINTAINERS.md` / `sync_github.py` 不再出现在 `git status` 待提交列表 |
 
 #### 教训
 
-原来那套 API 上传脚本**技术上没错、但把"留痕"这条元规则架空了**——全量重建 tree 意味着提交信息必然千篇一律，历史看等于没看。**用 git 而不是 API 的差别不在能不能传上去，而在"改动本身是否可读"。** 与用户明文要求的"规则要能校验、改动要留痕"直接相关，所以这条不是工具偏好问题。
+**发布物要有"受众意识"**。上一轮我为了满足"改完自动同步"，顺手把整套维护流程写进了面向所有人的规范——**技术上没错，受众上错了**。技能文件里出现的每一句"你应该怎么维护这个仓库"，对使用者都是噪音，对维护者是隐私泄露。
 
-另一个细节：改成 git 仓库时，`reset --mixed` 让远端独有的 `LICENSE`/`README.md` 显示为**待删除**——如果不检查就 `git add -A`，会把它们从仓库删掉。**修改版本控制方式时必须先 `git status` 逐条看 D 标记。**
-
-**重要环境坑（本次实测新发现）**：首次 `git push` 连续 3 次报 `CONNECT tunnel failed, response 502`。排查后确认**不是 token 或权限问题**——本机 `api.github.com` 直连通（`curl` 返回 200），但 **git 的 https 通道必须显式配代理**。修法：`git config http.proxy "$https_proxy"` + `git config https.proxy "$https_proxy"`（代理端口从环境变量读，会变，不要写死）。
-
-这条解释了此前一个长期困惑：**为什么 API 上传一路顺畅、`git push` 却总是失败**——因为两者走的网络路径不同。脚本已内置自动补代理 + 502 后重试，并把该坑写入 `SKILL.md` 的"已知环境"一节。**这类"看起来像认证失败、实际是网络路径差异"的报错最容易把人带偏**，下次遇到 502 先查代理，别急着换 token。
+判断标准很简单：**这句话对「clone 下来用它做文献汇报的人」有用吗？** 没有就挪出发布范围。
 
 #### 波及文件
 
 | 文件 | 变更摘要 |
 |---|---|
-| `.gitignore` | 新增：排除 `.workbuddy-ai/`、Python 缓存、编辑器文件、LaTeX 构建产物、所有 token 文件 |
-| `scripts/sync_github.py` | 新增：一条命令 commit+push；自动提交信息；token 从文件读；fetch 防非快进；dry-run/check/no-push 三种只读模式；报错打码 |
-| `SKILL.md` | 自我维护一节新增「改完就同步到 GitHub（元规则，强制）」；捆绑脚本表登记 `sync_github.py`；已知环境一节补「git 推送必须配代理，502 是网络路径问题不是权限问题」 |
-| `scripts/sync_github.py` | 另行补：git 调用自动带代理环境变量；推送遇 `502/CONNECT tunnel failed` 自动补配代理并重试一次；失败信息按三类原因归类 |
-| `README.md` | 翻译粒度改为"开工前必问"；铁律 2 补 R15 口径；门禁清单补 R15 与 `--review` 强制说明；新增「开工前必问的五项」 |
-| `LICENSE` / `README.md` | 从远端取回，成为技能目录真身的一部分（不再是发布副本里的注入文件） |
-| `optimization-record.md` | 本条 |
+| `SKILL.md` | 删「改完就同步到 GitHub」整节与捆绑脚本表里的 `sync_github.py`；「已知环境」的代理条目改为通用写法（不指向私有脚本） |
+| `MAINTAINERS.md` | 新增（**不发布**）：仓库信息、同步流程、`sync_github.py` 约定、代理排查、排除清单与自查命令；并入原维护类演进条目 |
+| `.gitignore` | 新增排除 `MAINTAINERS.md`、`scripts/sync_github.py` |
+| `scripts/sync_github.py` | 从 git 索引移除（`git rm --cached`），本地保留继续可用 |
+| `optimization-record.md` | 切出维护类条目（移入 `MAINTAINERS.md`）；本条 |

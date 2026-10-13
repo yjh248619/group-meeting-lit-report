@@ -1,6 +1,10 @@
 # WorkBuddy 工作区数据：记忆、备份、缓存 —— 不属于技能内容，绝不发布
 .workbuddy-ai/
 
+# 仓库维护专用 —— 与技能使用无关，不进发布范围
+MAINTAINERS.md
+scripts/sync_github.py
+
 # Python
 __pycache__/
 *.py[cod]

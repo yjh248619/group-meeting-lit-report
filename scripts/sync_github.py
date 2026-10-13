@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import os
 import pathlib
 import re
 import subprocess
@@ -31,6 +32,11 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 REMOTE = "origin"
 BRANCH = "main"
 
+# 本机代理（2026-10-13 实测）：git 的 https 通道必须显式配代理，
+# 否则 `git push` 报 `CONNECT tunnel failed, response 502`；
+# 而 api.github.com 直连是通的（这也是原先 API 上传能成功、git push 失败的原因）。
+PROXY_ENV_KEYS = ("https_proxy", "HTTPS_PROXY", "http_proxy", "HTTP_PROXY")
+
 # token 文件候选路径（按顺序找第一个存在的；都不存在则回落到 git 凭据助手）
 TOKEN_FILES = [
     pathlib.Path(r"C:\Users\yan\WorkBuddy\2026-09-14-15-14-18\_work\gh_token.txt"),
@@ -40,8 +46,19 @@ TOKEN_FILES = [
 SKILL_MD = ROOT / "SKILL.md"
 
 
-def run(cmd, check=True, capture=True):
+def git_env() -> dict:
+    """git 走这台机器的本地代理。没探测到就返回空 dict（不改环境）。"""
+    env = dict(os.environ)
+    proxy = next((env.get(k) for k in PROXY_ENV_KEYS if env.get(k)), "")
+    if proxy:
+        env["https_proxy"] = proxy
+        env["http_proxy"] = proxy
+    return env
+
+
+def run(cmd, check=True, capture=True, env=None):
     return subprocess.run(cmd, cwd=str(ROOT), check=check,
+                          env=env or git_env(),
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.STDOUT if capture else None,
                           text=True, encoding="utf-8", errors="replace")
@@ -214,10 +231,26 @@ def main():
     r = git("push", REMOTE, BRANCH, check=False)
     out = r.stdout or ""
     if r.returncode != 0:
-        # 凭证可能被回显，打码后再报错
-        print(out.replace(token, "***") if token else out)
-        die("推送失败。若提示认证问题，检查 token 是否有 repo 写权限、是否过期。")
-    print("   OK  %s" % out.strip().splitlines()[-1] if out.strip() else "   OK")
+        masked = out.replace(token, "***") if token else out
+        # 本机已知坑：git 不配代理时 https 通道报 502。自动补一次代理再试。
+        if re.search(r"CONNECT tunnel failed|502|Failed to connect|Could not resolve", masked):
+            proxy = next((os.environ.get(k) for k in PROXY_ENV_KEYS if os.environ.get(k)), "")
+            if proxy:
+                print("   [代理重试] 上次走直连失败，改用 %s 重试" % proxy)
+                git("config", "http.proxy", proxy)
+                git("config", "https.proxy", proxy)
+                r2 = git("push", REMOTE, BRANCH, check=False)
+                out2 = r2.stdout or ""
+                if r2.returncode == 0:
+                    print("   OK  %s" % (out2.strip().splitlines()[-1] if out2.strip() else "已推送"))
+                    print("=" * 68)
+                    print("仓库地址：https://github.com/%s/%s" % (args.owner, args.repo))
+                    return 0
+                masked = out2.replace(token, "***") if token else out2
+        print(masked)
+        die("推送失败。常见原因：① git 未配代理（脚本会自动补，仍失败就设 http.proxy）；"
+            "② token 无 repo 写权限或已过期；③ 网络/代理暂时不可用。")
+    print("   OK  %s" % (out.strip().splitlines()[-1] if out.strip() else "   OK"))
     print("=" * 68)
     print("仓库地址：https://github.com/%s/%s" % (args.owner, args.repo))
     return 0

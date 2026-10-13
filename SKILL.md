@@ -256,6 +256,11 @@ Get-Date -Format yyyy-MM-dd
 - **本机缺失、不要用**：`titlesec`、`tocloft`、`tcolorbox`、`needspace`（要用就先 `kpsewhich` 验证，缺则 `tlmgr install`）
 - **已知编译坑**：`ctexart` + `enumitem`(v3.11) 的 `description` 配 `style=nextline` 必然失败；`\hypersetup` 不要传 `bookmarks=true`。详见 `references/latex-cookbook.md` §4
 - 中文字体：系统有 `NSimSun/simsun.ttc`、`simhei`、`FangSong`、`STSong`、`Noto Sans SC`；TeX Live 自带 `Fandol` 系列
+- **GitHub 推送必须给 git 配代理**（2026-10-13 实测）：本机代理是 `http://127.0.0.1:<port>`（读环境变量 `https_proxy` 拿），**`api.github.com` 直连通、但 git 的 https 通道直连会报 `CONNECT tunnel failed, response 502`**。
+  - 这就是"API 上传能成功、`git push` 却失败"的原因，不是 token 或权限问题。
+  - 修法：`git config http.proxy "$https_proxy"` 与 `git config https.proxy "$https_proxy"`。
+  - `scripts/sync_github.py` 已内置：跑 git 时自动带上代理环境变量，推送遇 502 还会自动补配一次再重试。
+  - **端口会变**，不要写死；从环境变量读。
 - **执行外部命令（python / pandoc / xelatex）走 Bash 通道**（2026-09-16 实测：coreutils 齐全，stdout 能被工具直接捕获，含中文输出）。**不要把命令交给 PowerShell 工具**——实测它返回退出码 0 却根本没有启动进程，命令没有任何产物，最容易被误判成"脚本已经跑过了"。PowerShell 只用于 `Get-Date`、`Compress-Archive` 这类 cmdlet。
 
 （结论：本机**无需下载任何东西**即可直接出 PDF 和 Word。只有当探测失败时才走"请求授权→自动安装"流程。）

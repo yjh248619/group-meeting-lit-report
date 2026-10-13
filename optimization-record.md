@@ -848,13 +848,18 @@ yan 问：「有没有办法每次改完自动同步到 github」。确认口径
 
 另一个细节：改成 git 仓库时，`reset --mixed` 让远端独有的 `LICENSE`/`README.md` 显示为**待删除**——如果不检查就 `git add -A`，会把它们从仓库删掉。**修改版本控制方式时必须先 `git status` 逐条看 D 标记。**
 
+**重要环境坑（本次实测新发现）**：首次 `git push` 连续 3 次报 `CONNECT tunnel failed, response 502`。排查后确认**不是 token 或权限问题**——本机 `api.github.com` 直连通（`curl` 返回 200），但 **git 的 https 通道必须显式配代理**。修法：`git config http.proxy "$https_proxy"` + `git config https.proxy "$https_proxy"`（代理端口从环境变量读，会变，不要写死）。
+
+这条解释了此前一个长期困惑：**为什么 API 上传一路顺畅、`git push` 却总是失败**——因为两者走的网络路径不同。脚本已内置自动补代理 + 502 后重试，并把该坑写入 `SKILL.md` 的"已知环境"一节。**这类"看起来像认证失败、实际是网络路径差异"的报错最容易把人带偏**，下次遇到 502 先查代理，别急着换 token。
+
 #### 波及文件
 
 | 文件 | 变更摘要 |
 |---|---|
 | `.gitignore` | 新增：排除 `.workbuddy-ai/`、Python 缓存、编辑器文件、LaTeX 构建产物、所有 token 文件 |
 | `scripts/sync_github.py` | 新增：一条命令 commit+push；自动提交信息；token 从文件读；fetch 防非快进；dry-run/check/no-push 三种只读模式；报错打码 |
-| `SKILL.md` | 自我维护一节新增「改完就同步到 GitHub（元规则，强制）」；捆绑脚本表登记 `sync_github.py` |
+| `SKILL.md` | 自我维护一节新增「改完就同步到 GitHub（元规则，强制）」；捆绑脚本表登记 `sync_github.py`；已知环境一节补「git 推送必须配代理，502 是网络路径问题不是权限问题」 |
+| `scripts/sync_github.py` | 另行补：git 调用自动带代理环境变量；推送遇 `502/CONNECT tunnel failed` 自动补配代理并重试一次；失败信息按三类原因归类 |
 | `README.md` | 翻译粒度改为"开工前必问"；铁律 2 补 R15 口径；门禁清单补 R15 与 `--review` 强制说明；新增「开工前必问的五项」 |
 | `LICENSE` / `README.md` | 从远端取回，成为技能目录真身的一部分（不再是发布副本里的注入文件） |
 | `optimization-record.md` | 本条 |

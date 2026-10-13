@@ -192,6 +192,7 @@ foreach($e in @("xelatex","latexmk","pandoc")){ "$e => " + ((& where.exe $e 2>&1
 | `scripts/check_report.py`         | **静态门禁**：结构类 R1–R6／R13／**R15** 阻断（`exit 1`），内容类 R7–R12／R14 只警告；`--mode study` 换成学习版骨架（S2 阻断，S7/S8 警告）；`--outdir` 核对交付物是否落在用户指定目录（R13）；`--review` 从独立审查记录读自检与待确认项；`--figures-full` 按完整图表清单查 R7；**R14 默认开启**，查「希腊字母参数 ≈/＝ 数值」有无就近出处；**R15 仅汇报版生效**：交付物本体出现「首轮自检与修订记录」/「待确认项」即阻断（这两节只进 `_review/`），且未传 `--review` 时给警告 | **`exit 1` 时不得宣称阶段一完成；`--gate phase2` 未过不得进入阶段二**                    |
 | `scripts/normalize_md_residue.py` | **阶段二前置**：把阶段一 MD 里 HTML→MD 的残留（原始 table 块、sub/sup、br、`\[`）归一化为 Markdown 原生形式                                                                                                                                                                                                                                       | 只做等价改写，带「纯文本骨架全等」与「不得引入 `{{`/`}}`」两道安全网；**改完必须重跑 `check_report.py`** |
 | `scripts/compile_pdf.py`          | 用 latexmk/xelatex 编译 `.tex`，捕获并摘要 LaTeX 报错（含行号）                                                                                                                                                                                                                                                                     | 编译不通过不算完成                                                            |
+| `scripts/sync_github.py`          | **改完规则后同步到 GitHub**：`add/commit/push` 一条命令完成，提交信息自动带版本号与变更摘要。`--dry-run` 只预览、`--check` 只看差异、`--no-push` 只提交                                                                                                                                                                                            | token 只从文件读（不进命令行）；推前 `fetch` 防非快进覆盖；`.workbuddy-ai/` 由 `.gitignore` 排除 |
 
 ```bash
 python scripts/extract_pages.py --pdf "<文献.pdf>" --pages 491-492 --book-offset 15 --out work --dpi 430
@@ -226,6 +227,23 @@ Get-Date -Format yyyy-MM-dd
 ```
 
 **禁止**只改规则不写记录；**禁止**照抄上一条的日期。会话总结里要写明"已追加 optimization-record · 日期 · 标题关键词"。
+
+### 改完就同步到 GitHub（元规则，强制）
+
+技能目录**本身就是一个 git 仓库**，远端是 `https://github.com/yjh248619/group-meeting-lit-report`（公开仓库，MIT）。所以"改完规则 → 写演进记录 → 推上去"是一条链，不要漏最后一步。
+
+- **凡按上一条改了规则类文件，同一轮内跑一次同步**：
+
+  ```bash
+  python scripts/sync_github.py --dry-run     # 先看清会提交什么（不改动任何东西）
+  python scripts/sync_github.py               # 提交并推送（提交信息自动带版本号与变更摘要）
+  ```
+
+- **token 只从文件读，绝不写进命令行**：带 token 的命令行会触发安全授权弹窗并超时。脚本会自动去 `C:\Users\yan\WorkBuddy\2026-09-14-15-14-18\_work\gh_token.txt`（或 `~/.workbuddy-ai/gh_token.txt`）读。**token 文件本身被 `.gitignore` 挡在库外，永远不要提交。**
+- 推送前脚本会 `git fetch` 并检查落后情况；**远端有本地没有的提交时会停下来报错**，不许强推覆盖。
+- **`.workbuddy-ai/` 属于工作区数据（记忆、备份），由 `.gitignore` 排除，不进仓库、不进 ZIP。**
+- 提交信息由脚本按"版本号 + 变更文件归类"自动生成；要自定义就加 `-m "…"`。
+- **推送失败不得静默跳过**：把原始报错（token 打码后）说出来，并说明是认证、网络还是权限问题。这台机器的代理不稳，脚本自带 5 次退避重试；仍失败就重跑一次。
 
 **打包分发时先排除工作区数据**：技能目录里的 `.workbuddy-ai/`（工作区记忆与缓存）**不属于技能内容，不要打进 ZIP**。做法是先把技能目录复制到一个临时目录（跳过 `.workbuddy-ai/`），再对副本打包；直接对整个技能目录打包会把记忆文件一起发出去。
 

@@ -786,3 +786,75 @@ yan 提出两件事：
 | `assets/report-template.md` | 头部说明：翻译粒度必问、R15 禁止口径；2.2 节加整段形态切换说明；机器校验对照表补 R15、R2 加整段说明 |
 | `SKILL.md`（版本） | `version: 1.8.2` → `1.9.0` |
 | `optimization-record.md` | 本条 |
+
+---
+
+### 2026-10-13（二）：技能目录改成 git 仓库 + 一条命令同步到 GitHub
+
+#### 日期说明
+
+- 本条落盘日：2026-10-13（本机公历，已用 `Get-Date -Format yyyy-MM-dd` 核对）。同日第 2 条。
+
+#### 需求·触因
+
+yan 问：「有没有办法每次改完自动同步到 github」。确认口径为：**把技能目录变成本地 git 仓库，改完规则文档后自动 commit + push**（不是定时任务，也不是继续用纯 API 上传）。
+
+此前的同步方式（`_work/gh_upload.py`）有三个实际痛点：
+
+1. **纯 API 全量重建 tree**：不做 diff，每次全传，且**看不到改了什么**——远端 5 条提交的信息全是 `Add assets, references, scripts and state`，历史等于没有。
+2. **依赖临时发布副本**：`README.md` / `LICENSE` 是打包时"注入"到 `_work/publish/` 副本里的，**技能目录本身没有这两个文件**，容易和真身脱节。
+3. **每次都要人工记得去跑**，与"改动要留痕"的元规则绑不紧。
+
+#### 规则摘要
+
+**（一）技能目录本身即 git 仓库**
+
+- `git init -b main`，远端 `origin = https://github.com/yjh248619/group-meeting-lit-report`（公开，默认分支 `main`）。
+- 本地历史与远端对齐（`reset --mixed origin/main`），本轮改动作为新提交叠上去，**没有强推、没有丢历史**。
+- `LICENSE` / `README.md` 从远端取回技能目录，成为真身的一部分——以后同步自然带上，不再靠注入副本。
+
+**（二）`.gitignore`（新增，安全关键）**
+
+- 排除 `.workbuddy-ai/`（工作区记忆、备份——**绝不能公开发布**）、`__pycache__/`、编辑器与系统文件、LaTeX 构建产物。
+- **额外加了凭据防护**：`*_token*.txt`、`token.txt`、`.env` 一律挡在库外。
+
+**（三）`scripts/sync_github.py`（新增，一条命令同步）**
+
+- `python scripts/sync_github.py` → `add -A` + commit + push；提交信息自动生成为「`v<版本>：同步 <变更归类>` + 文件清单 + 日期」。
+- **token 只从文件读**（`_work/gh_token.txt` 或 `~/.workbuddy-ai/gh_token.txt`），绝不进命令行——带 token 的命令行会触发安全弹窗并超时（这是之前踩过三次的坑）。
+- 推前 `git fetch` 并比较本地/远端；**远端有本地没有的提交时直接停下报错**，不许强推覆盖。
+- 报错时把 token 打码后再输出。
+- 三种只读模式：`--dry-run`（只看会提交什么）、`--check`（只看差异）、`--no-push`（只提交不推送）。
+
+**（四）元规则：改完就同步**
+
+- `SKILL.md` 的自我维护一节新增「改完就同步到 GitHub（元规则，强制）」：改了规则类文件 → 写演进记录 → **同一轮内跑一次同步**，三步不能漏最后一步。
+- 打包分发说明与 `.gitignore` 的排除口径对齐（都排除 `.workbuddy-ai/`）。
+
+#### 验收
+
+| 项 | 结果 |
+|---|---|
+| 历史对齐 | 远端 5 条提交完整保留；本地 `reset --mixed` 后工作树保留全部文件，`LICENSE`/`README.md` 已恢复、未被误删 |
+| 首次推送 | `24452ab..058591c  main -> main`，远端 20 个文件，含 `LICENSE`/`README.md`/`.gitignore`/`sync_github.py` |
+| 提交信息 | 从「Add assets, references, scripts and state」变为「`v1.9.0：同步 (根目录)×3、assets、references、scripts×2`」+ 文件清单 |
+| secret 防护 | `git status` 无 token 文件进入待提交；`.gitignore` 含 `*_token*.txt` |
+| dry-run | 正确列出 7 个待同步文件，且 **`.workbuddy-ai/` 未出现**（被排除） |
+| 一致性校验 | `local == origin`（SHA 相同）、`--check` 报"已与远端一致" |
+
+#### 教训
+
+原来那套 API 上传脚本**技术上没错、但把"留痕"这条元规则架空了**——全量重建 tree 意味着提交信息必然千篇一律，历史看等于没看。**用 git 而不是 API 的差别不在能不能传上去，而在"改动本身是否可读"。** 与用户明文要求的"规则要能校验、改动要留痕"直接相关，所以这条不是工具偏好问题。
+
+另一个细节：改成 git 仓库时，`reset --mixed` 让远端独有的 `LICENSE`/`README.md` 显示为**待删除**——如果不检查就 `git add -A`，会把它们从仓库删掉。**修改版本控制方式时必须先 `git status` 逐条看 D 标记。**
+
+#### 波及文件
+
+| 文件 | 变更摘要 |
+|---|---|
+| `.gitignore` | 新增：排除 `.workbuddy-ai/`、Python 缓存、编辑器文件、LaTeX 构建产物、所有 token 文件 |
+| `scripts/sync_github.py` | 新增：一条命令 commit+push；自动提交信息；token 从文件读；fetch 防非快进；dry-run/check/no-push 三种只读模式；报错打码 |
+| `SKILL.md` | 自我维护一节新增「改完就同步到 GitHub（元规则，强制）」；捆绑脚本表登记 `sync_github.py` |
+| `README.md` | 翻译粒度改为"开工前必问"；铁律 2 补 R15 口径；门禁清单补 R15 与 `--review` 强制说明；新增「开工前必问的五项」 |
+| `LICENSE` / `README.md` | 从远端取回，成为技能目录真身的一部分（不再是发布副本里的注入文件） |
+| `optimization-record.md` | 本条 |

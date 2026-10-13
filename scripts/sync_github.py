@@ -176,15 +176,17 @@ def main():
     git("fetch", REMOTE, BRANCH, check=False)
     local = git("rev-parse", BRANCH, check=False).stdout.strip()
     remote = git("rev-parse", "%s/%s" % (REMOTE, BRANCH), check=False).stdout.strip()
-    if remote and local and remote != local:
+    if not remote:
+        print("   远端还没有 %s 分支 → 首次推送" % BRANCH)
+    elif remote == local:
+        print("   已与远端一致（%s）" % local[:12])
+    else:
         ahead = git("rev-list", "--count", "%s..%s" % (remote, local), check=False).stdout.strip()
         behind = git("rev-list", "--count", "%s..%s" % (local, remote), check=False).stdout.strip()
         print("   本地领先 %s / 落后 %s" % (ahead or "?", behind or "?"))
         if behind and behind != "0":
             die("远端有本地没有的提交（落后 %s 个）。先 `git pull` 再同步，"
                 "不要强推覆盖别人的东西。" % behind)
-    else:
-        print("   远端暂无 %s 分支或与本地一致" % BRANCH)
 
     if args.check:
         print("=" * 68)
